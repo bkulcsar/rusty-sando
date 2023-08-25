@@ -37,6 +37,7 @@ pub fn create_recipe(
     searcher: Address,
     sando_address: Address,
     shared_backend: SharedBackend,
+    gas_price: U256,
 ) -> Result<SandoRecipe> {
     #[allow(unused_mut)]
     let mut fork_db = CacheDB::new(shared_backend);
@@ -52,7 +53,8 @@ pub fn create_recipe(
     }
     let mut evm = EVM::new();
     evm.database(fork_db);
-    setup_block_state(&mut evm, &next_block);
+    evm.env.cfg.chain_id = U256([56, 0, 0, 0]).into();
+    setup_block_state(&mut evm, &next_block, gas_price);
 
     // *´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     // *                    FRONTRUN TRANSACTION                    */
@@ -63,8 +65,9 @@ pub fn create_recipe(
     // caluclate frontrun_out using encoded frontrun_in
     let frontrun_out = match ingredients.get_target_pool() {
         UniswapV2(p) => {
-            evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
-            evm.env.tx.gas_limit = 700000;
+            //evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
+            evm.env.tx.gas_price = gas_price.into();
+            evm.env.tx.gas_limit = 2000000;
             evm.env.tx.value = rU256::ZERO;
             v2_get_amount_out(frontrun_in, p, true, &mut evm)?
         }
@@ -89,8 +92,9 @@ pub fn create_recipe(
     // setup evm for frontrun transaction
     let mut frontrun_tx_env = TxEnv {
         caller: searcher.0.into(),
-        gas_limit: 700000,
-        gas_price: next_block.base_fee_per_gas.into(),
+        gas_limit: 2000000,
+        //gas_price: next_block.base_fee_per_gas.into(),
+        gas_price: gas_price.into(),
         gas_priority_fee: None,
         transact_to: TransactTo::Call(sando_address.0.into()),
         value: frontrun_value.into(),
@@ -192,7 +196,14 @@ pub fn create_recipe(
     let backrun_token_out = ingredients.get_start_end_token();
 
     // keep some dust
-    let backrun_in = get_erc20_balance(backrun_token_in, sando_address, next_block, &mut evm)?;
+    let backrun_in = get_erc20_balance(
+        backrun_token_in,
+        sando_address,
+        next_block,
+        &mut evm,
+        gas_price,
+    )?;
+
     let backrun_in = match ingredients.get_target_pool() {
         UniswapV2(_) => {
             let mut backrun_in_encoded = FiveByteMetaData::encode(backrun_in, 1);
@@ -226,8 +237,9 @@ pub fn create_recipe(
     // setup evm for backrun transaction
     let mut backrun_tx_env = TxEnv {
         caller: searcher.0.into(),
-        gas_limit: 700000,
-        gas_price: next_block.base_fee_per_gas.into(),
+        gas_limit: 2000000,
+        //gas_price: next_block.base_fee_per_gas.into(),
+        gas_price: gas_price.into(),
         gas_priority_fee: None,
         transact_to: TransactTo::Call(sando_address.0.into()),
         value: backrun_value.into(),
@@ -259,6 +271,7 @@ pub fn create_recipe(
         Ok(result) => result,
         Err(e) => return Err(anyhow!("[huffsando: EVM ERROR] backrun: {:?}", e)),
     };
+
     match backrun_result {
         ExecutionResult::Success { .. } => { /* continue */ }
         ExecutionResult::Revert { output, .. } => {
@@ -284,7 +297,13 @@ pub fn create_recipe(
     // *                      GENERATE REPORTS                      */
     // *.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
     // caluclate revenue from balance change
-    let post_sando_bal = get_erc20_balance(backrun_token_out, sando_address, next_block, &mut evm)?;
+    let post_sando_bal = get_erc20_balance(
+        backrun_token_out,
+        sando_address,
+        next_block,
+        &mut evm,
+        gas_price,
+    )?;
 
     let revenue = post_sando_bal
         .checked_sub(sando_start_bal)
@@ -316,6 +335,7 @@ pub fn get_erc20_balance(
     owner: Address,
     block: &BlockInfo,
     evm: &mut EVM<CacheDB<SharedBackend>>,
+    gas_price: U256,
 ) -> Result<U256> {
     let erc20 = BaseContract::from(
         parse_abi(&["function balanceOf(address) external returns (uint)"]).unwrap(),
@@ -325,8 +345,9 @@ pub fn get_erc20_balance(
     evm.env.tx.data = erc20.encode("balanceOf", owner).unwrap().0;
     evm.env.tx.caller = (*SUGAR_DADDY).into(); // spoof addy with a lot of eth
     evm.env.tx.nonce = None;
-    evm.env.tx.gas_price = block.base_fee_per_gas.into();
-    evm.env.tx.gas_limit = 700000;
+    //evm.env.tx.gas_price = block.base_fee_per_gas.into();
+    evm.env.tx.gas_price = gas_price.into();
+    evm.env.tx.gas_limit = 2000000;
     evm.env.tx.value = rU256::ZERO;
 
     let result = match evm.transact_ref() {

@@ -9,11 +9,13 @@ use foundry_evm::{
         EVM,
     },
 };
+use log::{error, info};
 
 use crate::{
     constants::{
         LIL_ROUTER_ADDRESS, LIL_ROUTER_CODE, LIL_ROUTER_CONTROLLER, WETH_ADDRESS, WETH_FUND_AMT,
     },
+    log_info_cyan,
     tx_utils::lil_router_interface::{
         build_swap_v2_data, build_swap_v3_data, decode_swap_v2_result, decode_swap_v3_result,
     },
@@ -29,6 +31,7 @@ pub async fn find_optimal_input(
     target_block: &BlockInfo,
     weth_inventory: U256,
     shared_backend: SharedBackend,
+    gas_price: U256,
 ) -> Result<U256> {
     //
     //            [EXAMPLE WITH 10 BOUND INTERVALS]
@@ -111,6 +114,7 @@ pub async fn find_optimal_input(
                 target_block.clone(),
                 shared_backend.clone(),
                 ingredients.clone(),
+                gas_price.clone(),
             ));
             revenues.push(sim);
         }
@@ -169,13 +173,14 @@ async fn evaluate_sandwich_revenue(
     next_block: BlockInfo,
     shared_backend: SharedBackend,
     ingredients: RawIngredients,
+    gas_price: U256,
 ) -> Result<U256> {
     let mut fork_db = CacheDB::new(shared_backend);
     inject_lil_router_code(&mut fork_db);
 
     let mut evm = EVM::new();
     evm.database(fork_db);
-    setup_block_state(&mut evm, &next_block);
+    setup_block_state(&mut evm, &next_block, gas_price);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    FRONTRUN TRANSACTION                    */
@@ -189,7 +194,8 @@ async fn evaluate_sandwich_revenue(
     evm.env.tx.transact_to = TransactTo::Call(*LIL_ROUTER_ADDRESS);
     evm.env.tx.data = frontrun_data.0;
     evm.env.tx.gas_limit = 700000;
-    evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
+    //evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
+    evm.env.tx.gas_price = gas_price.into();
     evm.env.tx.value = rU256::ZERO;
 
     let result = match evm.transact_commit() {
@@ -267,7 +273,8 @@ async fn evaluate_sandwich_revenue(
     evm.env.tx.transact_to = TransactTo::Call(*LIL_ROUTER_ADDRESS);
     evm.env.tx.data = backrun_data.0;
     evm.env.tx.gas_limit = 700000;
-    evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
+    //evm.env.tx.gas_price = next_block.base_fee_per_gas.into();
+    evm.env.tx.gas_price = gas_price.into();
     evm.env.tx.value = rU256::ZERO;
 
     let result = match evm.transact_commit() {

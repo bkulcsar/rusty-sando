@@ -102,7 +102,7 @@ impl RawIngredients {
 #[derive(Default, Clone, Copy)]
 pub struct BlockInfo {
     pub number: U64,
-    pub base_fee_per_gas: U256,
+    //pub base_fee_per_gas: U256,
     pub timestamp: U256,
     // These are optional because we don't know these values for `next_block`
     pub gas_used: Option<U256>,
@@ -114,7 +114,7 @@ impl BlockInfo {
     pub fn get_next_block(&self) -> BlockInfo {
         BlockInfo {
             number: self.number + 1,
-            base_fee_per_gas: calculate_next_block_base_fee(&self),
+            //base_fee_per_gas: calculate_next_block_base_fee(&self),
             timestamp: self.timestamp + 12,
             gas_used: None,
             gas_limit: None,
@@ -132,9 +132,9 @@ impl TryFrom<Block<H256>> for BlockInfo {
             ))?,
             gas_used: Some(value.gas_used),
             gas_limit: Some(value.gas_limit),
-            base_fee_per_gas: value.base_fee_per_gas.ok_or(anyhow!(
+            /*base_fee_per_gas: value.base_fee_per_gas.ok_or(anyhow!(
                 "could not parse base fee when setting up `block_manager`"
-            ))?,
+            ))?,*/
             timestamp: value.timestamp,
         })
     }
@@ -144,7 +144,7 @@ impl From<NewBlock> for BlockInfo {
     fn from(value: NewBlock) -> Self {
         Self {
             number: value.number,
-            base_fee_per_gas: value.base_fee_per_gas,
+            //base_fee_per_gas: value.,
             timestamp: value.timestamp,
             gas_used: Some(value.gas_used),
             gas_limit: Some(value.gas_limit),
@@ -154,7 +154,7 @@ impl From<NewBlock> for BlockInfo {
 
 /// Calculate the next block base fee
 // based on math provided here: https://ethereum.stackexchange.com/questions/107173/how-is-the-base-fee-per-gas-computed-for-a-new-block
-fn calculate_next_block_base_fee(block: &BlockInfo) -> U256 {
+/*fn calculate_next_block_base_fee(block: &BlockInfo) -> U256 {
     // Get the block base fee per gas
     let current_base_fee_per_gas = block.base_fee_per_gas;
 
@@ -182,7 +182,7 @@ fn calculate_next_block_base_fee(block: &BlockInfo) -> U256 {
 
         return current_base_fee_per_gas - base_fee_per_gas_delta;
     }
-}
+}*/
 
 /// All details for capturing a sando opp
 pub struct SandoRecipe {
@@ -228,6 +228,11 @@ impl SandoRecipe {
         has_dust: bool,
         provider: Arc<M>,
     ) -> Result<BundleRequest> {
+        let gas_price = provider
+            .get_gas_price()
+            .await
+            .map_err(|e| anyhow!("FAILED TO CREATE BUNDLE: Failed to get nonce {:?}", e))?;
+
         let nonce = provider
             .get_transaction_count(searcher.address(), Some(self.target_block.number.into()))
             .await
@@ -240,7 +245,8 @@ impl SandoRecipe {
             data: Some(self.frontrun.data.into()),
             nonce: Some(nonce),
             access_list: access_list_to_ethers(self.frontrun.access_list),
-            max_fee_per_gas: Some(self.target_block.base_fee_per_gas.into()),
+            //max_fee_per_gas: Some(self.target_block.base_fee_per_gas.into()),
+            max_fee_per_gas: gas_price.into(),
             ..Default::default()
         };
         let signed_frontrun = sign_eip1559(frontrun_tx, &searcher).await?;
@@ -250,7 +256,8 @@ impl SandoRecipe {
         // calc bribe (bribes paid in backrun)
         let revenue_minus_frontrun_tx_fee = self
             .revenue
-            .checked_sub(U256::from(self.frontrun_gas_used) * self.target_block.base_fee_per_gas)
+            //.checked_sub(U256::from(self.frontrun_gas_used) * self.target_block.base_fee_per_gas)
+            .checked_sub(U256::from(self.frontrun_gas_used) * gas_price)
             .ok_or_else(|| {
                 anyhow!("[FAILED TO CREATE BUNDLE] revenue doesn't cover frontrun basefee")
             })?;
@@ -266,11 +273,13 @@ impl SandoRecipe {
         let max_fee = bribe_amount / self.backrun_gas_used;
 
         ensure!(
-            max_fee >= self.target_block.base_fee_per_gas,
+            //max_fee >= self.target_block.base_fee_per_gas,
+            max_fee >= gas_price,
             "[FAILED TO CREATE BUNDLE] backrun maxfee less than basefee"
         );
 
-        let effective_miner_tip = max_fee.checked_sub(self.target_block.base_fee_per_gas);
+        //let effective_miner_tip = max_fee.checked_sub(self.target_block.base_fee_per_gas);
+        let effective_miner_tip = max_fee.checked_sub(gas_price);
 
         ensure!(
             effective_miner_tip.is_none(),
@@ -282,7 +291,7 @@ impl SandoRecipe {
             gas: Some((U256::from(self.backrun_gas_used) * 10) / 7),
             value: Some(self.backrun.value.into()),
             data: Some(self.backrun.data.into()),
-            nonce: Some(nonce+1),
+            nonce: Some(nonce + 1),
             access_list: access_list_to_ethers(self.backrun.access_list),
             max_priority_fee_per_gas: Some(max_fee),
             max_fee_per_gas: Some(max_fee),

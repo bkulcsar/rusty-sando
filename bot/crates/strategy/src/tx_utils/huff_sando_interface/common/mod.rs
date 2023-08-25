@@ -7,15 +7,19 @@ pub mod five_byte_encoder;
 pub mod weth_encoder;
 
 // Declare the array as static
-static FUNCTION_NAMES: [&str; 8] = [
+static FUNCTION_NAMES: [&str; 12] = [
     "v2_backrun0",
     "v2_frontrun0",
     "v2_backrun1",
     "v2_frontrun1",
     "v3_backrun0",
     "v3_frontrun0",
-    "v3_backrun1",
+    "pancakeswap_v3_callback",
     "v3_frontrun1",
+    "seppuku",
+    "recoverEth",
+    "recoverWeth",
+    "v3_backrun1",
 ];
 
 pub fn get_jump_dest_from_sig(function_name: &str) -> u8 {

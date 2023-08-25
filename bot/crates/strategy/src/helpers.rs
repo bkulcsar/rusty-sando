@@ -67,7 +67,7 @@ pub fn access_list_to_revm(access_list: AccessList) -> Vec<(B160, Vec<rU256>)> {
 #[macro_export]
 macro_rules! log_info_cyan {
     ($($arg:tt)*) => {
-        info!("{}", format_args!($($arg)*).to_string().cyan());
+        info!("{}", format_args!($($arg)*).to_string());
     };
 }
 
@@ -125,8 +125,8 @@ macro_rules! log_new_block_info {
         log::info!(
             "{}",
             format!(
-                "\nFound New Block\nLatest Block: (number:{:?}, timestamp:{:?}, basefee:{:?})",
-                $new_block.number, $new_block.timestamp, $new_block.base_fee_per_gas,
+                "\nFound New Block\nLatest Block: (number:{:?}, timestamp:{:?})",
+                $new_block.number, $new_block.timestamp, /*$new_block.base_fee_per_gas,*/
             )
             .bright_purple()
             .on_black()

@@ -11,10 +11,10 @@
 // `MAX_SQRT_PRICE_LIMIT_X96` is the gloabl upper bound for v3 swaps
 // `MIN_SQRT_PRICE_LIMIT_X96` is the global lower bound for v3 swaps
 
-#define constant FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984000000000000000000000000
-#define constant PAIR_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
+#define constant FACTORY = 0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9000000000000000000000000
+#define constant PAIR_INIT_CODE_HASH = 0x6ce8eb472fa82df5469c6ab6d485f17c3ad13c8cd7af59b3d4a8026c5ce0f7e2
 
-#define constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+#define constant WETH = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 #define constant SEARCHER = 0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf
 
 // +-------------------------------------------+
@@ -77,9 +77,9 @@ v3_frontrun0_astral_gate:
     v3_frontrun0                                // [v3_frontrun0_label]
     jump                                        // []
 
-// (UniswapV3) Weth is token1 && output
-v3_backrun1_astral_gate:
-    v3_backrun1                                 // [v3_backrun1_label]
+// 0x23 pancakeswapV3SwapCallback
+pancakeswap_v3_callback_astral_gate:
+    pancakeswap_v3_callback                     // [pancakeswap_v3_callback_label]
     jump                                        // []
 
 // (UniswapV3) Weth is token1 && input
@@ -99,26 +99,13 @@ recover_weth_astral_gate:
     recover_weth                                // [recover_weth_label]
     jump                                        // []
 
-// wall of stops used so that the jumpdest of callback JUMPDEST equals 0xfa
-// 0xfa = first byte of function sig 0xfa461e33
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop stop stop stop stop stop
-stop stop stop stop stop stop stop stop
+// (UniswapV3) Weth is token1 && output
+v3_backrun1_astral_gate:
+    v3_backrun1                                 // [v3_backrun1_label]
+    jump                                        // []
 
 // calldata: int256 amount0Delta, int256 amount1Delta, bytes data
-uniswap_v3_callback:
+pancakeswap_v3_callback:
     // Extract pool_key_hash for msg.sender validation
     0x99 calldataload
 
@@ -127,7 +114,7 @@ uniswap_v3_callback:
     // ref : https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/CallbackValidation.sol#L15
     // ref : https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/PoolAddress.sol#L33
     __RIGHTPAD(0xFF) 0x00 mstore                // [pool_key_hash] *mstore(ff, 0)
-    [FACTORY] chainid mstore                    // [pool_key_hash] *mstore(FACTORY, 1)
+    [FACTORY] 0x1 mstore                    // [pool_key_hash] *mstore(FACTORY, 1)
     0x15 mstore                                 // [pool_key_hash] *mstore(POOLKEYHASH, 21)
     [PAIR_INIT_CODE_HASH] 0x35 mstore           // [] *mstore(PAIR_HASH, 51)
 
@@ -199,7 +186,7 @@ v3_frontrun1:
     0xf9   // 249 (4+32+32+32+32+{32+32+53})    // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr                  // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // setup calldata for pool.swap(address(this), false, amountSpecified, minSqrtPriceLimitX96, data)
     [V3_SWAP_SIG] 0x00 mstore                   // [pair_address, value, argoffset, argsize, retoffset, retsize] - mstore(0, 0x022c0d9f)
@@ -233,7 +220,7 @@ v3_frontrun0:
     0xf9   // 249 (4+32+32+32+32+{32+32+53})    // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // setup calldata for pool.swap(address(this), true, amountSpecified, minSqrtPriceLimitX96, data)
     [V3_SWAP_SIG] 0x00 mstore                   // [pair_address, value, argoffset, argsize, retoffset, retsize] - mstore(0, 0x022c0d9f)
@@ -267,7 +254,7 @@ v3_backrun1:
     0xf9   // 249 (4+32+32+32+32+{32+32+53})    // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // setup calldata for pool.swap(address(this), true, amountSpecified, minSqrtPriceLimitX96, data)
     [V3_SWAP_SIG] 0x00 mstore                   // [pair_address, value, argoffset, argsize, retoffset, retsize] - mstore(0, 0x022c0d9f)
@@ -307,7 +294,7 @@ v3_backrun0:
     0xf9   // 249 (4+32+32+32+32+{32+32+53})    // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // setup calldata for pool.swap(address(this), false, amountSpecified, minSqrtPriceLimitX96, data)
     [V3_SWAP_SIG] 0x00 mstore                   // [pair_address, value, argoffset, argsize, retoffset, retsize] - mstore(0, 0x022c0d9f)
@@ -346,7 +333,7 @@ v2_backrun0:
     0xA4  // 164 (4 + 32 + 32 + 32 + {32 + 32}) // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // ***Preset the stack for when we call token.transfer***
     push0                                       // [retsize, *pair_swap_args]
@@ -395,7 +382,7 @@ v2_backrun1:
     0xA4  // 164 (4 + 32 + 32 + 32 + {32 + 32}) // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // ***Preset the stack for when we call token.transfer***
     push0                                       // [retsize, *pair_swap_args]
@@ -445,7 +432,7 @@ v2_frontrun0:
     0xA4  // 164 (4 + 32 + 32 + 32 + {32 + 32}) // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // ***Preset the stack for when we call token.transfer***
     push0                                       // [retsize, *pair_swap_args]
@@ -498,7 +485,7 @@ v2_frontrun1:
     0xA4  // 164 (4 + 32 + 32 + 32 + {32 + 32}) // [argsize, retoffset, retsize]
     push0                                       // [argoffset, argsize, retoffset, retsize]
     push0                                       // [value, argoffset, argsize, retoffset, retsize]
-    chainid calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
+    0x1 calldataload 0x60 shr               // [pair_address, value, argoffset, argsize, retoffset, retsize] = pair_swap_args
 
     // ***Preset the stack for when we call token.transfer***
     push0                                       // [retsize, *pair_swap_args]
@@ -580,7 +567,7 @@ recover_weth:
     // prepare variables for transfer call
     [TRANSFER_SIG] msize mstore                 // store 0xa9059cbb as mem(0x00)
     caller 0x04 mstore                          // store caller at mem(0x04)
-    chainid calldataload 0x24 mstore            // store amountOut at mem(0x24)
+    0x1 calldataload 0x24 mstore            // store amountOut at mem(0x24)
 
     // make transfer call
     push0                                       // [retsize]

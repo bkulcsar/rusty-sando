@@ -1,7 +1,8 @@
 use cfmms::pool::{UniswapV2Pool, UniswapV3Pool};
 use ethers::{abi::parse_abi, prelude::*};
+use log::{error, info};
 
-use crate::constants::WETH_ADDRESS;
+use crate::{constants::WETH_ADDRESS, log_info_cyan};
 
 // Build the data for the lil_router contract's calculateSwapV2 function
 pub fn build_swap_v2_data(amount_in: U256, pool: UniswapV2Pool, is_frontrun: bool) -> Bytes {

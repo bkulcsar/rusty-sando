@@ -21,7 +21,7 @@ pub struct NewBlock {
     pub number: U64,
     pub gas_used: U256,
     pub gas_limit: U256,
-    pub base_fee_per_gas: U256,
+    //pub base_fee_per_gas: U256,
     pub timestamp: U256,
 }
 
@@ -47,7 +47,7 @@ where
                 number,
                 gas_limit: block.gas_limit,
                 gas_used: block.gas_used,
-                base_fee_per_gas: block.base_fee_per_gas.unwrap_or_default(),
+                //base_fee_per_gas: block.base_fee_per_gas.unwrap_or_default(),
                 timestamp: block.timestamp,
             }),
             None => None,

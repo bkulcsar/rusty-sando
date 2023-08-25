@@ -47,6 +47,7 @@ impl<M: Middleware + 'static> SandoBot<M> {
 
     /// Main logic for the strategy
     /// Checks if the passed `RawIngredients` is sandwichable
+    #[allow(unused_mut)]
     pub async fn is_sandwichable(
         &self,
         ingredients: RawIngredients,
@@ -66,18 +67,22 @@ impl<M: Middleware + 'static> SandoBot<M> {
             Some((target_block.number - 1).into()),
         );
 
-        let weth_inventory = if cfg!(feature = "debug") {
-            // spoof weth balance when the debug feature is active
-            (*crate::constants::WETH_FUND_AMT).into()
-        } else {
-            self.sando_state_manager.get_weth_inventory()
-        };
+        let mut weth_inventory = self.sando_state_manager.get_weth_inventory();
+
+        #[cfg(feature = "debug")]
+        {
+            // Set a new value only when the debug feature is active
+            weth_inventory = (*crate::constants::WETH_FUND_AMT).into();
+        }
+
+        let gas_price = self.provider.get_gas_price().await?;
 
         let optimal_input = find_optimal_input(
             &ingredients,
             &target_block,
             weth_inventory,
             shared_backend.clone(),
+            gas_price,
         )
         .await?;
 
@@ -89,6 +94,7 @@ impl<M: Middleware + 'static> SandoBot<M> {
             self.sando_state_manager.get_searcher_address(),
             self.sando_state_manager.get_sando_address(),
             shared_backend,
+            gas_price,
         )?;
 
         log_opportunity!(
@@ -136,7 +142,6 @@ impl<M: Middleware + 'static> SandoBot<M> {
     }
 
     /// Process new txs as they come in
-    #[allow(unused_mut)]
     async fn process_new_tx(&mut self, victim_tx: Transaction) -> Option<Action> {
         // setup variables for processing tx
         let next_block = self.block_manager.get_next_block();
@@ -144,10 +149,10 @@ impl<M: Middleware + 'static> SandoBot<M> {
 
         // ignore txs that we can't include in next block
         // enhancement: simulate all txs regardless, store result, and use result when tx can included
-        if victim_tx.max_fee_per_gas.unwrap_or_default() < next_block.base_fee_per_gas {
+        /*if victim_tx.max_fee_per_gas.unwrap_or_default() < next_block.base_fee_per_gas {
             log_info_cyan!("{:?} mf<nbf", victim_tx.hash);
             return None;
-        }
+        }*/
 
         // check if tx is a swap
         let touched_pools = self
