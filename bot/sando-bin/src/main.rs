@@ -4,12 +4,11 @@ use anyhow::Result;
 use artemis_core::{
     collectors::{block_collector::BlockCollector, mempool_collector::MempoolCollector},
     engine::Engine,
-    executors::flashbots_executor::FlashbotsExecutor,
+    executors::mempool_executor::MempoolExecutor,
     types::{CollectorMap, ExecutorMap},
 };
 use ethers::providers::{Provider, Ws};
 use log::info;
-use reqwest::Url;
 use rusty_sando::{
     config::Config,
     initialization::{print_banner, setup_logger},
@@ -31,7 +30,7 @@ async fn main() -> Result<()> {
     let provider = Arc::new(Provider::new(ws));
 
     // Setup signers
-    let flashbots_signer = config.bundle_signer;
+    //let flashbots_signer = config.bundle_signer;
     let searcher_signer = config.searcher_signer;
 
     // Create engine
@@ -57,13 +56,19 @@ async fn main() -> Result<()> {
     engine.add_strategy(Box::new(strategy));
 
     // Setup flashbots executor
-    let executor = Box::new(FlashbotsExecutor::new(
+    /*let executor = Box::new(FlashbotsExecutor::new(
         provider.clone(),
         flashbots_signer,
         Url::parse("https://relay.flashbots.net")?,
+    ));*/
+    let executor = Box::new(MempoolExecutor::new(
+        provider.clone(),
     ));
-    let executor = ExecutorMap::new(executor, |action| match action {
+    /*let executor = ExecutorMap::new(executor, |action| match action {
         Action::SubmitToFlashbots(bundle) => Some(bundle),
+    });*/
+    let executor = ExecutorMap::new(executor, |action| match action {
+        Action::SubmitToMempool(txs) => Some(txs),
     });
     engine.add_executor(Box::new(executor));
 

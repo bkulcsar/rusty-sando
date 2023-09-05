@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::ensure;
 use anyhow::{anyhow, Result};
+use artemis_core::executors::mempool_executor::{MempoolBundle, MempoolBundleRequest};
 use artemis_core::{
     collectors::block_collector::NewBlock, executors::flashbots_executor::FlashbotsBundle,
 };
@@ -29,7 +30,8 @@ pub enum Event {
 /// Core Action enum for current strategy
 #[derive(Debug, Clone)]
 pub enum Action {
-    SubmitToFlashbots(FlashbotsBundle),
+    //SubmitToFlashbots(FlashbotsBundle),
+    SubmitToMempool(MempoolBundle),
 }
 
 /// Configuration for variables needed for sandwiches
@@ -231,7 +233,7 @@ impl SandoRecipe {
         let gas_price = provider
             .get_gas_price()
             .await
-            .map_err(|e| anyhow!("FAILED TO CREATE BUNDLE: Failed to get nonce {:?}", e))?;
+            .map_err(|e| anyhow!("FAILED TO CREATE BUNDLE: Failed to get gas price {:?}", e))?;
 
         let nonce = provider
             .get_transaction_count(searcher.address(), Some(self.target_block.number.into()))
@@ -300,6 +302,7 @@ impl SandoRecipe {
         let signed_backrun = sign_eip1559(backrun_tx, &searcher).await?;
 
         // construct bundle
+
         let mut bundled_transactions: Vec<Bytes> = vec![signed_frontrun];
         bundled_transactions.append(&mut signed_meat_txs.clone());
         bundled_transactions.push(signed_backrun);
@@ -315,5 +318,93 @@ impl SandoRecipe {
             .set_simulation_timestamp(self.target_block.timestamp.as_u64());
 
         Ok(bundle_request)
+    }
+
+    pub async fn to_mempool_bundle<M: Middleware>(
+        self,
+        sando_address: Address,
+        searcher: &LocalWallet,
+        has_dust: bool,
+        provider: Arc<M>,
+    ) -> Result<MempoolBundleRequest> {
+        let gas_price = provider
+            .get_gas_price()
+            .await
+            .map_err(|e| anyhow!("FAILED TO CREATE BUNDLE: Failed to get gas price {:?}", e))?;
+
+        let nonce = provider
+            .get_transaction_count(searcher.address(), Some(self.target_block.number.into()))
+            .await
+            .map_err(|e| anyhow!("FAILED TO CREATE BUNDLE: Failed to get nonce {:?}", e))?;
+
+        let frontrun_tx = Eip1559TransactionRequest {
+            to: Some(sando_address.into()),
+            gas: Some((U256::from(self.frontrun_gas_used) * 10) / 7),
+            value: Some(self.frontrun.value.into()),
+            data: Some(self.frontrun.data.into()),
+            nonce: Some(nonce),
+            access_list: access_list_to_ethers(self.frontrun.access_list),
+            //max_fee_per_gas: Some(self.target_block.base_fee_per_gas.into()),
+            max_fee_per_gas: gas_price.into(),
+            ..Default::default()
+        };
+        let signed_frontrun = sign_eip1559(frontrun_tx, &searcher).await?;
+
+        let signed_meat_txs: Vec<Bytes> = self.meats.into_iter().map(|meat| meat.rlp()).collect();
+
+        // calc bribe (bribes paid in backrun)
+        let revenue_minus_frontrun_tx_fee = self
+            .revenue
+            //.checked_sub(U256::from(self.frontrun_gas_used) * self.target_block.base_fee_per_gas)
+            .checked_sub(U256::from(self.frontrun_gas_used) * gas_price)
+            .ok_or_else(|| {
+                anyhow!("[FAILED TO CREATE BUNDLE] revenue doesn't cover frontrun basefee")
+            })?;
+
+        // eat a loss (overpay) to get dust onto the sando contract (more: https://twitter.com/libevm/status/1474870661373779969)
+        let bribe_amount = if !has_dust {
+            revenue_minus_frontrun_tx_fee + *DUST_OVERPAY
+        } else {
+            // bribe away 99.9999999% of revenue lmeow
+            revenue_minus_frontrun_tx_fee * 999999999 / 1000000000
+        };
+
+        let max_fee = bribe_amount / self.backrun_gas_used;
+
+        ensure!(
+            //max_fee >= self.target_block.base_fee_per_gas,
+            max_fee >= gas_price,
+            "[FAILED TO CREATE BUNDLE] backrun maxfee less than basefee"
+        );
+
+        //let effective_miner_tip = max_fee.checked_sub(self.target_block.base_fee_per_gas);
+        let effective_miner_tip = max_fee.checked_sub(gas_price);
+
+        ensure!(
+            effective_miner_tip.is_none(),
+            "[FAILED TO CREATE BUNDLE] negative miner tip"
+        );
+
+        let backrun_tx = Eip1559TransactionRequest {
+            to: Some(sando_address.into()),
+            gas: Some((U256::from(self.backrun_gas_used) * 10) / 7),
+            value: Some(self.backrun.value.into()),
+            data: Some(self.backrun.data.into()),
+            nonce: Some(nonce + 1),
+            access_list: access_list_to_ethers(self.backrun.access_list),
+            max_priority_fee_per_gas: Some(max_fee),
+            max_fee_per_gas: Some(max_fee),
+            ..Default::default()
+        };
+        let signed_backrun = sign_eip1559(backrun_tx, &searcher).await?;
+
+        // construct bundle
+        let bundled_transactions: MempoolBundleRequest = MempoolBundleRequest {
+            frontrun_tx: signed_frontrun,
+            meat_tx: signed_meat_txs,
+            backrun_tx: signed_backrun
+        };
+
+        Ok(bundled_transactions)
     }
 }

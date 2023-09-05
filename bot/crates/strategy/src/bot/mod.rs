@@ -208,7 +208,8 @@ impl<M: Middleware + 'static> SandoBot<M> {
             match self.is_sandwichable(ingredients, next_block.clone()).await {
                 Ok(s) => {
                     let _bundle = match s
-                        .to_fb_bundle(
+                        //.to_fb_bundle(
+                        .to_mempool_bundle(
                             self.sando_state_manager.get_sando_address(),
                             self.sando_state_manager.get_searcher_signer(),
                             false,
@@ -234,6 +235,7 @@ impl<M: Middleware + 'static> SandoBot<M> {
             };
         }
 
-        Some(Action::SubmitToFlashbots(sando_bundles))
+        //Some(Action::SubmitToFlashbots(sando_bundles))
+        Some(Action::SubmitToMempool(sando_bundles))
     }
 }
