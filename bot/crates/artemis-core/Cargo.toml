@@ -13,6 +13,7 @@ ethers-flashbots = { git = "https://github.com/onbjerg/ethers-flashbots", featur
 
 ## async
 async-trait = "0.1.64"
+futures = "0.3"
 reqwest = { version = "0.11.14", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1.18", features = ["full"] }
 tokio-stream = { version = "0.1", features = ['sync'] }

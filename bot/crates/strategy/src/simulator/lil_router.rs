@@ -9,13 +9,11 @@ use foundry_evm::{
         EVM,
     },
 };
-use log::{error, info};
 
 use crate::{
     constants::{
         LIL_ROUTER_ADDRESS, LIL_ROUTER_CODE, LIL_ROUTER_CONTROLLER, WETH_ADDRESS, WETH_FUND_AMT,
     },
-    log_info_cyan,
     tx_utils::lil_router_interface::{
         build_swap_v2_data, build_swap_v3_data, decode_swap_v2_result, decode_swap_v3_result,
     },

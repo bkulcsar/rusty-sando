@@ -35,7 +35,7 @@ impl<M: Middleware + 'static> PoolManager<M> {
 
         let pools = if checkpoint_exists {
             let (_, pools) =
-                sync_pools_from_checkpoint(checkpoint_path, 100000, self.provider.clone()).await?;
+                sync_pools_from_checkpoint(checkpoint_path, 10000, self.provider.clone()).await?;
             pools
         } else {
             sync_pairs(
@@ -119,7 +119,7 @@ impl<M: Middleware + 'static> PoolManager<M> {
 
     pub fn new(provider: Arc<M>) -> Self {
         let dexes_data = [
-            (
+            /*(
                 // Uniswap v2
                 "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
                 DexVariant::UniswapV2,
@@ -142,14 +142,20 @@ impl<M: Middleware + 'static> PoolManager<M> {
                 "0x4eef5746ED22A2fD368629C1852365bf5dcb79f1",
                 DexVariant::UniswapV2,
                 12385067u64,
-            ),
+            ),*/
             (
-                // Pancakeswap
-                "0x1097053Fd2ea711dad45caCcc45EfF7548fCB362",
+                // Pancakeswap v2
+                "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73",
                 DexVariant::UniswapV2,
-                15614590u64,
+                6809737u64,
             ),
             (
+                // Pancakeswap v3
+                "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+                DexVariant::UniswapV3,
+                26956207u64,
+            ),
+            /*(
                 // ShibaSwap
                 "0x115934131916C8b277DD010Ee02de363c09d037c",
                 DexVariant::UniswapV2,
@@ -166,7 +172,7 @@ impl<M: Middleware + 'static> PoolManager<M> {
                 "0x1F98431c8aD98523631AE4a59f267346ea31F984",
                 DexVariant::UniswapV3,
                 12369621u64,
-            ),
+            ),*/
         ];
 
         let dexes = dexes_data

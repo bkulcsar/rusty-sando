@@ -8,10 +8,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{
-        transaction::{eip2718::TypedTransaction, eip712::Types},
-        Bytes, U256,
-    },
+    types::{transaction::eip2718::TypedTransaction, Bytes, U256},
 };
 use tracing::{error, info};
 

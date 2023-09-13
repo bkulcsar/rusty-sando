@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use ethers::{prelude::Middleware, providers::PubsubClient, types::Transaction};
+use futures::StreamExt;
 use std::sync::Arc;
 
 use crate::types::{Collector, CollectorStream};
@@ -28,11 +29,9 @@ where
     M::Error: 'static,
 {
     async fn get_event_stream(&self) -> Result<CollectorStream<'_, Transaction>> {
-        let stream = self
-            .provider
-            .subscribe(["newPendingTransactionsWithBody"])
-            .await
-            .map_err(|_| anyhow::anyhow!("Failed to create mempool stream"))?;
+        let stream = self.provider.subscribe_pending_txs().await?;
+        let stream = stream.transactions_unordered(256);
+        let stream = stream.filter_map(|res| async move { res.ok() });
         Ok(Box::pin(stream))
     }
 }
